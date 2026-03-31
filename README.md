@@ -330,7 +330,7 @@ openclaw cron add \
 ### Restart gateway to apply change
 
 ```bash
-openclaw gateway start
+openclaw gateway restart
 openclaw cron list
 ```
 ---
