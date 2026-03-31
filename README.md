@@ -326,13 +326,6 @@ openclaw cron add \
   --channel telegram \
   --to "987654321"
 ```
-
-### Restart gateway to apply change
-
-```bash
-openclaw gateway restart
-openclaw cron list
-```
 ---
 
 ## 9. Testing the Cron Job
