@@ -168,7 +168,7 @@ openclaw gateway restart
 2. In your chatbot, click start
 3. It will response back the user id with specific code that can be used to pair the telegram bot with OpenClaw and command as below:
 
-<img width="355" height="394" alt="Screen Shot 2026-04-01 at 1 18 34 AM" src="https://github.com/user-attachments/assets/7c019350-e963-4a35-bed8-1f451f8ec28f" />
+<img width="353" height="405" alt="Screen Shot 2026-04-01 at 1 26 40 AM" src="https://github.com/user-attachments/assets/5f8d1d2d-7bcc-4083-98b4-ac78caafad9d" />
 
 ### Step 5d — Approve the pairing
 
