@@ -1,441 +1,552 @@
-# OpenClaw — Complete Guide
-> Self-hosted AI agent gateway for WhatsApp, Telegram, Discord, iMessage, and more.
+# OpenClaw Tutorial: Daily Briefing Agent with OpenAI + Telegram
+
+A complete guide to installing OpenClaw, connecting GPT-4o-mini as your AI brain, wiring up a Telegram bot, and scheduling a daily morning briefing — with all known errors and fixes documented.
 
 ---
 
 ## Table of Contents
-1. [What is OpenClaw?](#what-is-openclaw)
-2. [Key Concepts](#key-concepts)
-3. [Setup on WSL2 (Windows)](#setup-on-wsl2-windows)
-4. [Build a Simple AI Agent with Telegram](#build-a-simple-ai-agent-with-telegram)
-5. [Useful Commands](#useful-commands)
+
+1. [What is OpenClaw?](#1-what-is-openclaw)
+2. [Prerequisites](#2-prerequisites)
+3. [Installation](#3-installation)
+4. [Connect OpenAI GPT-4o](#4-connect-openai-gpt-4o)
+5. [Connect Telegram](#5-connect-telegram)
+6. [Full Config Reference](#6-full-config-reference)
+7. [Agent Personality Files](#7-agent-personality-files)
+8. [Schedule the Morning Briefing](#8-schedule-the-morning-briefing)
+9. [Testing the Cron Job](#9-testing-the-cron-job)
+10. [Known Errors & Fixes](#10-known-errors--fixes)
+11. [Daily Commands](#11-daily-commands)
 
 ---
 
-## What is OpenClaw?
+## 1. What is OpenClaw?
 
-OpenClaw is a **self-hosted, open-source AI agent gateway** that connects your
-favorite chat apps to AI models (Anthropic Claude, OpenAI, Google, Ollama, etc.).
-You run a single **Gateway** process on your own machine or server — it becomes
-the bridge between your messaging apps and an always-available AI assistant.
+OpenClaw is a self-hosted AI agent that runs as a persistent background daemon on your own machine. You interact with it through messaging platforms you already use — WhatsApp, Telegram, Slack, Discord, iMessage, Signal — and it can:
 
-**Who is it for?** Developers and power users who want a personal AI assistant
-they can message from anywhere without giving up control of their data.
+- Run shell commands and control your browser
+- Read and write files on your machine
+- Manage your calendar and send emails
+- Proactively message you on a schedule (cron)
+- Search the web in real-time
 
-### Why OpenClaw?
+All data (gateway, tools, memory) lives on your machine. The AI model can be cloud-hosted (OpenAI, Anthropic, Google) or fully local via Ollama.
 
-| Feature | Description |
-|---|---|
-| **Self-hosted** | Runs on your hardware, your rules, your data |
-| **Multi-channel** | One Gateway serves WhatsApp, Telegram, Discord, Signal, Slack, and more simultaneously |
-| **Agent-native** | Built for AI agents with tool use, sessions, memory, and multi-agent routing |
-| **Open source** | MIT licensed, community-driven |
-| **Model-agnostic** | Works with Anthropic, OpenAI, Google, Ollama, and any OpenAI-compatible server |
+### Architecture Overview
 
-### Supported Channels
-
-WhatsApp, Telegram, Discord, Slack, Signal, iMessage (BlueBubbles), Google Chat,
-Microsoft Teams, IRC, Matrix, LINE, Mattermost, Twitch, and more.
+<img width="662" height="405" alt="image" src="https://github.com/user-attachments/assets/a5bdab49-d457-48ac-93ff-2e9ab6e7c78c" />
 
 ---
 
-## Key Concepts
+## 2. Prerequisites
 
-### Architecture
-
-```
-WhatsApp / Telegram / Slack / Discord / Signal / iMessage
-                        │
-                        ▼
-              ┌─────────────────────┐
-              │       Gateway        │  ws://127.0.0.1:18789
-              └──────────┬──────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          ▼              ▼              ▼
-     AI Agent          CLI          WebChat UI
-    (RPC mode)    (openclaw …)     (browser)
-```
-
-### Workspace Bootstrap Files
-
-Inside `~/.openclaw/workspace/`, these files are injected into every session:
-
-| File | Purpose |
-|---|---|
-| `AGENTS.md` | Operating instructions and persistent memory |
-| `SOUL.md` | Persona, tone, and boundaries |
-| `TOOLS.md` | Notes on how you want tools used |
-| `IDENTITY.md` | Agent name, vibe, emoji |
-| `USER.md` | Your profile and preferred address |
-
-### Skills
-
-Skills are `SKILL.md` files with YAML frontmatter that teach the agent how and
-when to use tools. They live in `<workspace>/skills/` and are loaded at runtime.
-
-```
-~/.openclaw/workspace/skills/
-└── my-skill/
-    └── SKILL.md    ← YAML frontmatter + markdown instructions
-```
-
----
-
-## Setup on WSL2 (Windows)
-
-### Prerequisites
-
-- Windows 10 (build 19041+) or Windows 11
-- Node.js 24 (installed inside WSL)
-- An API key from Anthropic, OpenAI, Google, or another provider
-
----
-
-### Phase 1 — Install WSL2 + Ubuntu
-
-Open **PowerShell as Administrator**:
-
-```powershell
-# Install WSL2 with Ubuntu (default)
-wsl --install
-
-# Or pick a specific version
-wsl --install -d Ubuntu-24.04
-
-# Reboot Windows if prompted
-```
-
----
-
-### Phase 2 — Enable systemd (required for the Gateway service)
-
-Open your **Ubuntu (WSL) terminal**:
+### Node.js version check
 
 ```bash
-sudo tee /etc/wsl.conf >/dev/null <<'EOF'
-[boot]
-systemd=true
+node --version
+# Must be v22.x.x or higher
 
-[network]
-generateResolvConf=false
-EOF
-
-# Set reliable DNS (fixes common WSL2 network issues)
-sudo rm -f /etc/resolv.conf
-sudo tee /etc/resolv.conf >/dev/null <<'EOF'
-nameserver 8.8.8.8
-nameserver 1.1.1.1
-EOF
-
-sudo chattr +i /etc/resolv.conf
-```
-
-Shut down WSL from PowerShell, then reopen Ubuntu:
-
-```powershell
-wsl --shutdown
-```
-
-Verify systemd is running:
-
-```bash
-systemctl --user status
-```
-
----
-
-### Phase 3 — Install Node.js via nvm (Recommended)
-
-Using `nvm` avoids APT network issues entirely:
-
-```bash
-# Install nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-
-# Reload shell
-source ~/.bashrc
-
-# Install and use Node 24
-nvm install 24
-nvm use 24
-nvm alias default 24
-
-# Verify
-node --version    # v24.x.x
 npm --version
+# Must be 10.x.x or higher
 ```
+
+> **If below v22:** run `nvm install 22 && nvm use 22` or download from nodejs.org.
+
+### You will also need
+
+| Item | Where to get it | Notes |
+|---|---|---|
+| OpenAI API key | platform.openai.com | Starts with `sk-...` |
+| Telegram account | telegram.org | Free; mobile or desktop |
+| 16 GB RAM | Your machine | OpenClaw minimum |
 
 ---
 
-### Phase 4 — Install OpenClaw
+## 3. Installation
+
+### Install globally via npm
+
+```bash
+npm install -g openclaw@latest
+```
+
+Or use the one-liner script:
 
 ```bash
 curl -fsSL https://openclaw.ai/install.sh | bash
 ```
 
----
+### Verify
 
-### Phase 5 — Run Onboarding
+```bash
+openclaw --version
+# Expected: openclaw/2026.x.x linux-x64 node-v22.x.x
+```
+
+### Run the onboarding wizard
 
 ```bash
 openclaw onboard --install-daemon
 ```
 
-This wizard:
-- Lets you choose a model provider (Anthropic, OpenAI, etc.)
-- Prompts for your API key
-- Registers the Gateway as a **systemd user service** that auto-starts
+Answer the prompts as follows:
 
-Verify it's running:
-
-```bash
-openclaw gateway status    # should show port 18789
-openclaw dashboard         # opens browser Control UI
-```
-
----
-
-### Phase 6 — Auto-Start on Windows Boot (Optional)
-
-For headless setups where no one logs into Windows:
-
-```bash
-# Inside WSL — keep user services alive without login
-sudo loginctl enable-linger "$(whoami)"
-
-# Install the Gateway service
-openclaw gateway install
-```
-
-In **PowerShell as Administrator** — start WSL at Windows boot:
-
-```powershell
-# Check your distro name
-wsl --list --verbose
-
-# Create scheduled task
-schtasks /create /tn "WSL Boot" /tr "wsl.exe -d Ubuntu --exec /bin/true" /sc onstart /ru SYSTEM
-```
-
-Verify after reboot:
-
-```bash
-systemctl --user is-enabled openclaw-gateway
-systemctl --user status openclaw-gateway --no-pager
-```
-
----
-
-### Common WSL2 Troubleshooting
-
-| Problem | Fix |
+| Wizard prompt | Choose |
 |---|---|
-| `apt update` fails with `NOSPLIT` | Fix DNS (Phase 2) or use `nvm` to bypass APT |
-| `systemctl` not found | Re-add `systemd=true` to `/etc/wsl.conf`, then `wsl --shutdown` |
-| Gateway won't start | Run `openclaw doctor` |
-| Can't open dashboard from Windows browser | See portproxy forwarding below |
+| Install as system daemon? | Yes |
+| Setup type | Custom |
+| Gateway bind address | 127.0.0.1 (loopback, safer) |
+| AI model provider | OpenAI |
+| Channels to enable | Telegram |
+| Install extra skills now? | Skip |
 
-**Expose Gateway to Windows browser** (PowerShell as Admin):
+### File structure created
 
-```powershell
-$WslIp = (wsl -d Ubuntu -- hostname -I).Trim().Split(" ")[0]
-netsh interface portproxy add v4tov4 listenaddress=0.0.0.0 `
-  listenport=18789 connectaddress=$WslIp connectport=18789
-New-NetFirewallRule -DisplayName "OpenClaw Gateway" -Direction Inbound `
-  -Protocol TCP -LocalPort 18789 -Action Allow
+```
+~/.openclaw/
+├── openclaw.json       ← main config
+├── .env                ← secrets (API keys)
+├── workspace/
+│   ├── SOUL.md         ← agent personality
+│   ├── AGENTS.md       ← operating instructions
+│   └── USER.md         ← info about you
+└── memory/             ← SQLite session memory
 ```
 
----
-
-## Build a Simple AI Agent with Telegram
-
-We'll build **"Briffy"** — a cheerful daily briefing agent accessible from Telegram.
-
-### Step 1 — Create a Telegram Bot
-
-1. Open Telegram and message **[@BotFather](https://t.me/botfather)**
-2. Send `/newbot` and follow the prompts
-3. Copy your bot token: `123456789:ABC-xxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+> **Security:** run `chmod 600 ~/.openclaw/.env` to restrict read permissions to your user only. Never commit `.env` to git.
 
 ---
 
-### Step 2 — Initialize Your Workspace
+## 4. Connect OpenAI GPT-4o
+
+### Authenticate
 
 ```bash
-openclaw setup
-ls ~/.openclaw/workspace/
-# AGENTS.md  SOUL.md  TOOLS.md  IDENTITY.md  USER.md
+openclaw models auth paste-token --provider openai
+# Paste your key when prompted: sk-proj-xxxxxxxxxxxx
+# ✓ OpenAI credentials saved to ~/.openclaw/.env
 ```
 
----
-
-### Step 3 — Configure the Agent Identity
-
-**`~/.openclaw/workspace/IDENTITY.md`**
-```markdown
-name: Briffy
-emoji: ☀️
-vibe: cheerful morning assistant
-```
-
-**`~/.openclaw/workspace/SOUL.md`**
-```markdown
-# Soul
-
-You are Briffy — warm, efficient, and positive without being over the top.
-You speak like a knowledgeable friend, not a corporate chatbot.
-Never use filler phrases like "Certainly!" or "Of course!".
-Keep replies short unless detail is specifically asked for.
-```
-
-**`~/.openclaw/workspace/USER.md`**
-```markdown
-# User Profile
-
-Name: [Your Name]
-Timezone: Asia/Seoul (KST, UTC+9)
-Preferred format: bullet points for summaries, plain prose for explanations
-```
-
-**`~/.openclaw/workspace/AGENTS.md`**
-```markdown
-# Briffy — Daily Briefing Agent
-
-You are Briffy, a cheerful morning assistant.
-
-## Core behaviours
-- Always greet the user by name (see USER.md)
-- Keep responses concise and upbeat
-- When asked for a briefing, use the `daily_briefing` skill
-- Never run commands that modify files unless explicitly asked
-- If you don't know something, say so clearly
-```
-
----
-
-### Step 4 — Create the Daily Briefing Skill
+### Set GPT-4o-mini as default model
 
 ```bash
-mkdir -p ~/.openclaw/workspace/skills/daily-briefing
+# Set primary model (cost-efficient for daily briefings)
+openclaw config set agents.defaults.model.primary gpt-4o-mini
+
+# Optional: full GPT-4o as fallback for complex queries
+openclaw config set agents.defaults.model.secondary gpt-4o
+
+# Verify
+openclaw config get agents.defaults.model
 ```
 
-**`~/.openclaw/workspace/skills/daily-briefing/SKILL.md`**
-```markdown
----
-name: daily_briefing
-description: Produces a morning briefing with current time, date, and workspace summary.
----
-
-# Daily Briefing Skill
-
-When the user asks for a "briefing", "morning update", or "daily summary", do:
-
-1. Use the `exec` tool to run `date` and get the current date and time.
-2. Use the `exec` tool to run `ls -lh ~/` to list home directory contents.
-3. Compose a short briefing in this format:
-
-   **☀️ Good morning, [Name]!**
-
-   📅 **Date & Time:** [result from step 1]
-
-   📁 **Workspace snapshot:**
-   [3–5 notable files/dirs from step 2 with sizes]
-
-   🗒️ **Today's focus:** [one encouraging sentence]
-
-Keep it under 150 words. Be warm and brief.
-```
-
----
-
-### Step 5 — Configure `openclaw.json`
-
-Edit `~/.openclaw/openclaw.json`:
+### How this looks in openclaw.json
 
 ```json
 {
-  "identity": {
-    "name": "Briffy",
-    "theme": "cheerful morning assistant",
-    "emoji": "☀️"
-  },
-  "agent": {
-    "workspace": "~/.openclaw/workspace",
-    "model": {
-      "primary": "anthropic/claude-sonnet-4-6"
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary":   "gpt-4o-mini",
+        "secondary": "gpt-4o"
+      }
     }
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "botToken": "YOUR_TELEGRAM_BOT_TOKEN_HERE"
-    }
-  },
-  "messages": {
-    "ackReaction": "☀️"
-  },
-  "logging": {
-    "level": "info"
   }
 }
 ```
 
+> **Cost note:** gpt-4o-mini costs ~$0.15/million input tokens. A daily briefing with web search uses ~2,000–3,000 tokens — well under $1/month.
+
 ---
 
-### Step 6 — Restart and Test
+## 5. Connect Telegram
+
+### Step 5a — Create a bot via BotFather
+
+1. Open Telegram and search for **@BotFather**
+2. Send `/newbot`
+3. Enter a display name — e.g. **My Daily Briefing**
+4. Enter a username ending in `bot` — e.g. `mydailybriefing_bot`
+5. BotFather replies with a token like: `1234567890:ABCdefGHIjklMNOpqrsTUVwxyz`
+6. Save the token — treat it like a password
+
+### Step 5b — Get your Telegram user ID
+
+Search for **@userinfobot** in Telegram, start a chat, and it replies with your numeric user ID (e.g. `987654321`).
+
+### Step 5c — Get your numeric chat ID
+
+Send any message to your bot, then run:
 
 ```bash
-# Reload skills and config
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates" \
+  | python3 -m json.tool | grep '"id"'
+# Returns your numeric chatId e.g. 987654321
+```
+
+Or check the gateway logs after sending a message:
+
+```bash
+openclaw gateway logs --tail 20
+# Look for: telegram inbound chatId=987654321 from=YourName
+```
+
+### Step 5d — Add bot token to OpenClaw
+
+```bash
+openclaw config set channels.telegram.botToken YOUR_BOT_TOKEN
+openclaw config set channels.telegram.dmPolicy "allowlist"
+openclaw config set channels.telegram.allowFrom[0] 987654321
+openclaw config set channels.telegram.streamMode "partial"
 openclaw gateway restart
-
-# Verify the skill loaded
-openclaw skills list
-
-# Quick terminal test
-openclaw agent --message "Give me my morning briefing"
 ```
 
-Then open Telegram, find your bot, and send:
-```
-Give me my morning briefing
+### Step 5e — Approve the pairing
+
+```bash
+# Watch logs for the pairing code
+openclaw gateway logs --follow
+
+# In another terminal, approve:
+openclaw pairing approve telegram ABCD1234
+# ✓ Pairing approved successfully
 ```
 
-Expected reply:
-```
-☀️ Good morning, [Your Name]!
+### Step 5f — Verify
 
-📅 Date & Time: Mon Mar 30 09:15:42 KST 2026
-
-📁 Workspace snapshot:
-- AGENTS.md (1.2K)
-- SOUL.md (0.4K)
-- skills/ (dir)
-
-🗒️ Today's focus: You've got a great setup — let's make it count!
-```
+Send `/status` to your bot in Telegram. It should reply with agent status and session info.
 
 ---
 
-### Step 7 — Automate a Daily Briefing at 8am (Optional)
+## 6. Full Config Reference
 
-Add to `openclaw.json`:
+### ~/.openclaw/openclaw.json
 
 ```json
 {
-  "automation": {
-    "cron": [
+  "gateway": {
+    "host": "127.0.0.1",
+    "port": 18789
+  },
+
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary":   "gpt-4o-mini",
+        "secondary": "gpt-4o"
+      },
+      "workspace": "~/.openclaw/workspace"
+    },
+    "list": [
       {
-        "schedule": "0 8 * * *",
-        "message": "Give me my morning briefing",
-        "agent": "main"
+        "id":      "aria",
+        "default": true,
+        "name":    "Aria",
+        "emoji":   "🌅"
       }
     ]
+  },
+
+  "channels": {
+    "telegram": {
+      "botToken":   "${TELEGRAM_BOT_TOKEN}",
+      "dmPolicy":   "allowlist",
+      "allowFrom":  [987654321],
+      "streamMode": "partial"
+    }
   }
 }
 ```
 
-Then restart:
+### ~/.openclaw/.env
+
+```env
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
+TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+```
+
+---
+
+## 7. Agent Personality Files
+
+OpenClaw reads three Markdown files from the workspace on every session start.
+
+### SOUL.md — personality & tone
+
+```markdown
+# Aria — Morning Briefing Agent
+
+You are Aria, a sharp and warm morning briefing assistant.
+Your job is to make the user's day start well — you surface
+the signal, cut the noise, and add just enough context to
+make each story feel real.
+
+## Tone
+- Confident but never arrogant
+- Curious, occasionally dry, never corporate
+- No filler phrases ("Certainly!", "Great question!")
+- Get to the point
+
+## Briefing format
+When delivering the morning briefing:
+- Use numbered lists with bold headline titles
+- Keep each item to 2 sentences max
+- End with: "Reply with a number to dive deeper 👇"
+
+## Follow-up questions
+When the user asks about a specific item:
+- Search for more detail first (use web search)
+- Answer in 3–5 concise sentences
+- Offer to set a reminder or save a note if relevant
+```
+
+### AGENTS.md — operating rules
+
+```markdown
+# Operating Instructions
+
+## Morning briefing task
+1. Search the web for today's top 5 AI and tech headlines
+2. Filter to the 3 most significant stories
+3. Format as the briefing template in SOUL.md
+4. Send to Telegram
+
+## Tools to use
+- web_search: always use for fresh news (never rely on training data)
+- telegram.send: to push briefings proactively
+
+## What NOT to do
+- Do not include advertising or sponsored content
+- Do not fabricate quotes or statistics
+- Do not send more than one unsolicited message per day
+```
+
+### USER.md — context about you
+
+```markdown
+# About Me
+
+- Role: software engineer / ML practitioner
+- Topics I care about: AI research, open source, developer tools
+- Preferred language: English
+- Timezone: Asia/Seoul (KST, UTC+9)
+- Morning briefing: 8:00 AM KST
+- Keep summaries concise — I read on my phone
+```
+
+---
+
+## 8. Schedule the Morning Briefing
+
+### Important: "tasks" key is NOT valid in openclaw.json
+
+The gateway will abort with `Unrecognized key: "tasks"` if you add a `tasks` block to `openclaw.json`. Scheduled jobs are managed separately via the `openclaw cron` CLI and stored in `~/.openclaw/cron/jobs.json`.
+
+### The cron directory is created on first job add
+
+`~/.openclaw/cron/` does not exist on a fresh install — it is created automatically the first time you run `openclaw cron add`.
+
+### Which session target to use
+
+| Situation | `sessionTarget` | `payload.kind` |
+|---|---|---|
+| Default agent, auto-deliver to paired Telegram | `main` | `systemEvent` |
+| Named agent (`agentId` set) | `isolated` | `agentTurn` |
+| One-shot test job | `isolated` | `agentTurn` |
+
+> **Note:** `sessionTarget: "main"` only works with the **default agent**. If your agent has a custom `agentId`, you must use `isolated` + `agentTurn`.
+
+### Add job via CLI — default agent (simplest, no chatId needed)
+
+```bash
+openclaw cron add \
+  --name "morning-briefing" \
+  --cron "0 8 * * *" \
+  --tz "Asia/Seoul" \
+  --session main \
+  --system-event "Run the morning briefing: search for the top 3 AI and tech headlines from today, format as the briefing template in SOUL.md, and send the result here." \
+  --wake now
+```
+
+### Add job via CLI — named agent (requires chatId)
+
+```bash
+openclaw cron add \
+  --name "morning-briefing" \
+  --cron "0 8 * * *" \
+  --tz "Asia/Seoul" \
+  --session isolated \
+  --message "Search for the top 3 AI and tech headlines from today and format them as the briefing template in SOUL.md." \
+  --announce \
+  --channel telegram \
+  --to "987654321"
+```
+
+### Edit jobs.json directly
+
+Always stop the gateway before editing the file manually — otherwise your changes will be overwritten.
+
+```bash
+# Step 1: Stop the gateway
+openclaw gateway stop
+
+# Step 2: Edit the file
+nano ~/.openclaw/cron/jobs.json
+```
+
+Full schema for jobs.json:
+
+```json
+{
+  "jobs": [
+    {
+      "jobId": "morning-briefing",
+      "name": "Morning Briefing",
+      "enabled": true,
+      "description": "Daily AI news digest via Telegram",
+
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "tz": "Asia/Seoul"
+      },
+
+      "sessionTarget": "main",
+
+      "payload": {
+        "kind": "systemEvent",
+        "message": "Run the morning briefing: search for the top 3 AI and tech headlines from today, format as the briefing template in SOUL.md, and send the result here."
+      },
+
+      "wakeMode": "now",
+      "agentId": "aria",
+      "deleteAfterRun": false
+    }
+  ]
+}
+```
+
+For a **named agent**, use this structure instead:
+
+```json
+{
+  "jobs": [
+    {
+      "jobId": "morning-briefing",
+      "name": "Morning Briefing",
+      "enabled": true,
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8 * * *",
+        "tz": "Asia/Seoul"
+      },
+      "sessionTarget": "isolated",
+      "agentId": "daily-morning-brief-agent",
+      "payload": {
+        "kind": "agentTurn",
+        "message": "Search for the top 3 AI and tech headlines from today and format them as the briefing template in SOUL.md.",
+        "delivery": {
+          "channel": "telegram",
+          "to": "987654321"
+        }
+      },
+      "wakeMode": "now",
+      "deleteAfterRun": false
+    }
+  ]
+}
+```
+
+> **Key:** `delivery` is nested **inside** `payload`, not a sibling field.
+
+```bash
+# Step 3: Validate JSON
+cat ~/.openclaw/cron/jobs.json | python3 -m json.tool
+
+# Step 4: Restart
+openclaw gateway start
+openclaw cron list
+```
+
+### Auto-deliver to paired Telegram without hardcoding chatId
+
+If you want delivery to your paired bot with no chatId, use `--channel last` — this reuses the last route the agent replied to:
+
+```bash
+# First: send any message to your bot in Telegram (establishes the last route)
+
+# Then add the job:
+openclaw cron add \
+  --name "morning-briefing" \
+  --cron "0 8 * * *" \
+  --tz "Asia/Seoul" \
+  --session isolated \
+  --message "Search for the top 3 AI and tech headlines from today and format them as the briefing template in SOUL.md." \
+  --announce \
+  --channel last
+```
+
+---
+
+## 9. Testing the Cron Job
+
+### Method 1 — `openclaw cron run` (recommended)
+
+```bash
+# Get your job ID
+openclaw cron list
+
+# Trigger immediately
+openclaw cron run <jobId>
+
+# Watch outcome
+openclaw cron runs --id <jobId>
+openclaw gateway logs --follow
+```
+
+### Method 2 — One-shot `--at` job (reliable workaround)
+
+```bash
+openclaw cron add \
+  --name "briefing-test" \
+  --at "2026-03-31T$(date -u -d '+2 minutes' '+%H:%M'):00Z" \
+  --session isolated \
+  --message "Search for the top 3 AI and tech headlines from today and format them as the briefing template in SOUL.md." \
+  --announce \
+  --channel last
+
+openclaw gateway logs --follow
+```
+
+One-shot jobs delete themselves after a successful run.
+
+### Method 3 — Chat-driven test (simplest)
+
+Send this directly to your Telegram bot:
+
+```
+Run the morning briefing: search for the top 3 AI and tech headlines
+from today, format as the briefing template in SOUL.md, and send back here.
+```
+
+If it works in chat, it will work in cron.
+
+> **Known bug (Linux, v2026.3.8):** `openclaw cron run <jobId>` may return `{ enqueued: true }` but never execute — the job sits "running" until it times out with `lane wait exceeded`. Scheduled automatic execution works fine; only manual triggers via `cron run` are affected. Use Method 2 as a workaround.
+
+---
+
+## 10. Known Errors & Fixes
+
+### Error: `Unrecognized key: "tasks"`
+
+```
+Gateway aborted: config is invalid.
+<root>: Unrecognized key: "tasks"
+```
+
+**Cause:** `"tasks"` is not a valid key in `openclaw.json`. Cron jobs must be managed via `openclaw cron` CLI, not the main config.
+
+**Fix:** Remove the `"tasks": [...]` block from `openclaw.json`, then restart:
 
 ```bash
 openclaw gateway restart
@@ -443,41 +554,161 @@ openclaw gateway restart
 
 ---
 
-## Useful Commands
+### Error: `pairing required`
 
-| Command | Description |
-|---|---|
-| `openclaw gateway status` | Check Gateway health and port |
-| `openclaw gateway restart` | Reload config and skills |
-| `openclaw gateway install` | Register as systemd service |
-| `openclaw dashboard` | Open browser Control UI |
-| `openclaw setup` | Initialize workspace files |
-| `openclaw onboard` | Re-run setup wizard |
-| `openclaw doctor` | Diagnose and auto-repair issues |
-| `openclaw skills list` | List all loaded skills |
-| `openclaw agent --message "..."` | Chat from the terminal |
-| `openclaw config set <key> <val>` | Edit config non-interactively |
-| `openclaw gateway logs --follow` | Watch live Gateway logs |
+```
+GatewayClientRequestError: Error: gateway closed (1008): pairing required
+```
 
-### In-Chat Commands (send from Telegram/WhatsApp)
+**Cause:** The CLI device has not been authorized yet. This is a security handshake — the gateway intentionally rejects unrecognized connections.
 
-| Command | Description |
-|---|---|
-| `/status` | Show model, tokens, cost |
-| `/model` | Switch the active model |
-| `/reset` | Clear the current session |
-| `/new` | Start a fresh session |
+**Fix:**
+
+```bash
+# List pending pairing requests
+openclaw devices list
+
+# Approve your device
+openclaw devices approve <request-id>
+
+# If nothing shows up, force reinstall service identity
+openclaw gateway install --force
+openclaw gateway restart
+```
 
 ---
 
-## Next Steps
+### Error: `Delivering to Telegram requires target <chatId>`
 
-- **Add more skills** — web search, git summary, weather via `exec` + `curl`
-- **Connect more channels** — WhatsApp, Discord, Slack simultaneously
-- **Memory plugin** — install `memory-lancedb` so the agent remembers across sessions
-- **Multi-agent routing** — create a separate `work` agent with stricter tool policies
-- **Browse ClawHub** — community skill registry at [clawhub.com](https://clawhub.com)
+**Cause:** The cron subagent spawned in isolated mode has no delivery context — it doesn't know which Telegram chat to send to.
+
+**Fix options (in order of preference):**
+
+1. Use `--session main` with default agent — inherits paired Telegram automatically, no chatId needed
+2. Use `--channel last` — reuses the last route the agent replied to
+3. Explicitly pass `--to "YOUR_NUMERIC_CHATID"` and nest `delivery` inside `payload` in jobs.json
 
 ---
 
-*Generated from the OpenClaw documentation — [docs.openclaw.ai](https://docs.openclaw.ai)*
+### Error: `sessionTarget "main" is only valid for the default agent`
+
+```
+GatewayClientRequestError: Error: cron: sessionTarget "main" is only valid
+for the default agent. Use sessionTarget "isolated" with payload.kind
+"agentTurn" for non-default agents (agentId: daily-morning-brief-agent)
+```
+
+**Cause:** `sessionTarget: "main"` only works with the default agent. Named agents require `isolated` + `agentTurn`.
+
+**Fix:** Update jobs.json:
+
+```json
+{
+  "sessionTarget": "isolated",
+  "payload": {
+    "kind": "agentTurn",
+    "message": "...",
+    "delivery": {
+      "channel": "telegram",
+      "to": "987654321"
+    }
+  }
+}
+```
+
+---
+
+### General troubleshooting table
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Bot doesn't reply | Gateway stopped | `openclaw gateway start` |
+| "Unauthorized" error | User ID not in allowFrom | Re-run pairing or add ID to `allowFrom` |
+| Node version error | Node < 22 | `nvm install 22 && nvm use 22` |
+| OpenAI 401 error | Bad API key | Re-run `openclaw models auth paste-token --provider openai` |
+| Cron fires but no Telegram message | `streamMode` misconfigured | Set `channels.telegram.streamMode: "partial"` |
+| `jobs.json` edits lost on restart | Edited while gateway was running | Always stop gateway before editing, restart after |
+| Cron run enqueues but never fires | Known Linux bug v2026.3.8 | Use `--at` one-shot job instead |
+
+---
+
+## 11. Daily Commands
+
+```bash
+# Gateway
+openclaw gateway status        # is the daemon alive?
+openclaw gateway start         # start the daemon
+openclaw gateway stop          # stop the daemon
+openclaw gateway restart       # restart after config changes
+openclaw gateway logs --follow # live log stream
+openclaw gateway logs --tail 50
+
+# Diagnostics
+openclaw doctor                # full health check
+openclaw config wizard         # interactive config editor
+openclaw devices list          # list paired devices
+
+# Cron
+openclaw cron list             # all scheduled jobs
+openclaw cron run <jobId>      # trigger a job immediately
+openclaw cron runs --id <jobId># check run history
+openclaw cron rm <jobId>       # delete a job
+openclaw cron edit --id <jobId># edit a job interactively
+
+# Models
+openclaw config get agents.defaults.model
+openclaw models auth paste-token --provider openai
+```
+
+---
+
+## Appendix: Cron Expression Reference
+
+| Expression | Meaning |
+|---|---|
+| `0 8 * * *` | Every day at 08:00 (local tz) |
+| `0 23 * * *` | Every day at 23:00 UTC (= 08:00 KST) |
+| `0 8 * * 1-5` | Weekdays only at 08:00 |
+| `0 8,20 * * *` | Twice daily at 08:00 and 20:00 |
+| `*/30 * * * *` | Every 30 minutes |
+
+---
+
+*Last updated: March 2026 | OpenClaw v2026.x | GPT-4o-mini | Telegram*
+
+---
+
+## References
+
+### Official OpenClaw Resources
+
+| Resource | URL | Description |
+|---|---|---|
+| Main repository | https://github.com/openclaw/openclaw | Source code, releases, and issue tracker |
+| Official website | https://openclaw.ai | Project homepage |
+| Documentation (hosted) | https://docs.openclaw.ai | Full docs index — config, channels, security, agents |
+| Docs index (GitHub) | https://github.com/openclaw/openclaw/blob/main/docs/index.md | All guides organized by use case |
+| Getting started guide | https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md | Beginner install + first chat walkthrough |
+| Release notes | https://github.com/openclaw/openclaw/releases | Changelog for every version |
+| GitHub organization | https://github.com/openclaw | All official repos |
+
+### Related Official Repositories
+
+| Repository | URL | Description |
+|---|---|---|
+| ClawHub (skill registry) | https://github.com/openclaw/clawhub | Community skill directory; 5,400+ skills at onlycrabs.ai |
+| Docker image | https://github.com/coollabsio/openclaw | Fully featured Docker image with nginx reverse proxy |
+| Nix packaging | https://github.com/openclaw/nix-openclaw | Nix flake for NixOS/nix-darwin installs |
+| Windows companion | https://github.com/openclaw/openclaw-windows-node | System tray app + PowerToys palette extension |
+| Community Discord docs | https://github.com/openclaw/community | Discord server policies and documentation |
+| acpx (ACP CLI client) | https://github.com/openclaw/acpx | Headless CLI client for Agent Client Protocol sessions |
+
+### External Services Referenced
+
+| Service | URL | Used for |
+|---|---|---|
+| OpenAI Platform | https://platform.openai.com | API key for GPT-4o-mini / GPT-4o |
+| Telegram BotFather | https://t.me/BotFather | Creating and managing Telegram bots |
+| Telegram @userinfobot | https://t.me/userinfobot | Getting your Telegram numeric user ID |
+| Node.js | https://nodejs.org | Required runtime (v22+ or v24 recommended) |
+| nvm (Node version manager) | https://github.com/nvm-sh/nvm | Switching Node.js versions |
