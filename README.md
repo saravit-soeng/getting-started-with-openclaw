@@ -1,6 +1,6 @@
 # OpenClaw Tutorial: Daily Briefing Agent with OpenAI + Telegram
 
-A complete guide to installing OpenClaw, connecting GPT-4o-mini as your AI brain, wiring up a Telegram bot, and scheduling a daily morning briefing.
+A complete guide to installing OpenClaw on __WSL2(Ubuntu 24.04)__, connecting GPT-4o-mini as your AI brain, wiring up a Telegram bot, and scheduling a daily morning briefing.
 
 ---
 
@@ -21,7 +21,7 @@ A complete guide to installing OpenClaw, connecting GPT-4o-mini as your AI brain
 
 ## 1. What is OpenClaw?
 
-OpenClaw is a self-hosted AI agent that runs as a persistent background daemon on your own machine. You interact with it through messaging platforms you already use — WhatsApp, Telegram, Slack, Discord, iMessage, Signal — and it can:
+OpenClaw is a self-hosted AI agent that runs as a persistent background daemon on your own machine. You interact with it through messaging platforms you already use — WhatsApp, Telegram, Slack, Discord, Signal — and it can:
 
 - Run shell commands and control your browser
 - Read and write files on your machine
@@ -101,6 +101,10 @@ Answer the prompts as follows:
 ```
 
 > **Security:** run `chmod 600 ~/.openclaw/.env` to restrict read permissions to your user only. Never commit `.env` to git.
+
+You can also browse to OpenClaw Dashboard UI via http://localhost:18789/
+
+<img width="1881" height="803" alt="image" src="https://github.com/user-attachments/assets/de85b252-ba23-410a-aaa2-dc568505fdac" />
 
 ---
 
@@ -387,8 +391,6 @@ openclaw models auth paste-token --provider openai
 | Documentation (hosted) | https://docs.openclaw.ai | Full docs index — config, channels, security, agents |
 | Docs index (GitHub) | https://github.com/openclaw/openclaw/blob/main/docs/index.md | All guides organized by use case |
 | Getting started guide | https://github.com/openclaw/openclaw/blob/main/docs/start/getting-started.md | Beginner install + first chat walkthrough |
-| Release notes | https://github.com/openclaw/openclaw/releases | Changelog for every version |
-| GitHub organization | https://github.com/openclaw | All official repos |
 
 ### Related Official Repositories
 
