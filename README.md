@@ -21,7 +21,7 @@ A complete guide to installing OpenClaw on __WSL2(Ubuntu 24.04)__, connecting GP
 
 ## 1. What is OpenClaw?
 
-OpenClaw is a self-hosted AI agent that runs as a persistent background daemon on your own machine. You interact with it through messaging platforms you already use — WhatsApp, Telegram, Slack, Discord, Signal — and it can:
+OpenClaw is a self-hosted AI agent that runs as a persistent background daemon on your own machine. You interact with it through messaging platforms you already use — WhatsApp, Telegram, Slack, Discord, Signal, and more — and it can:
 
 - Run shell commands and control your browser
 - Read and write files on your machine
